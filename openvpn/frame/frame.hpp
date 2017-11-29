@@ -156,8 +156,13 @@ namespace openvpn {
       // How much payload space left in buffer
       size_t remaining_payload(const Buffer& buf) const
       {
+	// BUG BUG BUG!!!
+	// VS2017 Release with "Whole Program Optimization" ON
+	// always returns 0, in other cases (optimization off/debug build/VS2015)
+	// code works as expected
+
 	if (payload() > buf.size())
-	  return payload() - buf.size();
+	  return payload() - buf.size(); // VS2017 release works fine if "payload()" call is replaced with "payload_"
 	else
 	  return 0;
       }
