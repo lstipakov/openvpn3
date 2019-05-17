@@ -52,6 +52,10 @@ namespace openvpn {
     (*frame)[Frame::WRITE_SSL_CLEARTEXT] = Frame::Context(headroom, payload, tailroom, 0, align_block, BufferAllocated::GROW);
     frame->standardize_capacity(~0);
 
+    // Wintun could return 256 packets no larger than tun mtu
+    const size_t tun_mtu_wintun = tun_mtu > 0 ? tun_mtu : 1500;
+    (*frame)[Frame::READ_WINTUN] = Frame::Context(headroom, tun_mtu_wintun * 256, tailroom, 0, align_block, 0);
+
     if (verbose)
       OPENVPN_LOG("Frame=" << headroom << '/' << payload << '/' << tailroom
 		  << " mssfix-ctrl=" << (*frame)[Frame::READ_BIO_MEMQ_STREAM].payload());
