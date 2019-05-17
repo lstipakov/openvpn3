@@ -33,6 +33,7 @@
 #include <ntddndis.h>
 #include <wininet.h>
 #include <ws2tcpip.h> // for IPv6
+#include <tlhelp32.h> // for impersonating as LocalSystem
 
 #include <string>
 #include <vector>
@@ -73,15 +74,17 @@ namespace openvpn {
 	const char COMPONENT_ID[] = OPENVPN_STRINGIZE(TAP_WIN_COMPONENT_ID); // CONST GLOBAL
       }
 
+      using TapGuidLuid = std::pair<std::string, DWORD>;
+
       // Return a list of TAP device GUIDs installed on the system,
       // filtered by TAP_WIN_COMPONENT_ID.
-      inline std::vector<std::string> tap_guids()
+      inline std::vector<TapGuidLuid> tap_guids()
       {
 	LONG status;
 	DWORD len;
 	DWORD data_type;
 
-	std::vector<std::string> ret;
+	std::vector<TapGuidLuid> ret;
 
 	Win::RegKey adapter_key;
 	status = ::RegOpenKeyExA(HKEY_LOCAL_MACHINE,
@@ -142,6 +145,8 @@ namespace openvpn {
 	    if (std::strcmp(strbuf, COMPONENT_ID))
 	      continue;
 
+	    TapGuidLuid tgl;
+
 	    len = sizeof(strbuf);
 	    status = ::RegQueryValueExA(unit_key(),
 					"NetCfgInstanceId",
@@ -153,8 +158,24 @@ namespace openvpn {
 	    if (status == ERROR_SUCCESS && data_type == REG_SZ)
 	      {
 		strbuf[len] = '\0';
-		ret.push_back(std::string(strbuf));
+		tgl.first = std::string(strbuf);
 	      }
+
+	    DWORD luid;
+	    len = sizeof(luid);
+	    status = ::RegQueryValueExA(unit_key(),
+					"NetLuidIndex",
+					nullptr,
+					&data_type,
+					(LPBYTE)&luid,
+					&len);
+
+	    if (status == ERROR_SUCCESS && data_type == REG_DWORD)
+	      {
+		tgl.second = luid;
+	      }
+
+	    ret.push_back(tgl);
 	  }
 	return ret;
       }
@@ -177,6 +198,7 @@ namespace openvpn {
 
 	std::string name;
 	std::string guid;
+	DWORD net_luid_index;
 	DWORD index;
       };
 
@@ -186,11 +208,12 @@ namespace openvpn {
 	{
 	  // first get the TAP guids
 	  {
-	    std::vector<std::string> guids = tap_guids();
-	    for (std::vector<std::string>::const_iterator i = guids.begin(); i != guids.end(); i++)
+	    std::vector<TapGuidLuid> guids = tap_guids();
+	    for (auto& i = guids.begin(); i != guids.end(); i++)
 	      {
 		TapNameGuidPair pair;
-		pair.guid = *i;
+		pair.guid = i->first;
+		pair.net_luid_index = i->second;
 
 		// lookup adapter index
 		{
@@ -318,11 +341,99 @@ namespace openvpn {
 	}
       };
 
-      // given a TAP GUID, form the pathname of the TAP device node
-      inline std::string tap_path(const std::string& tap_guid)
+#ifdef USE_WINTUN
+      inline std::string tap_path(const TapNameGuidPair& tap)
       {
-	return std::string(USERMODEDEVICEDIR) + tap_guid + std::string(TAP_WIN_SUFFIX);
+	return std::string(USERMODEDEVICEDIR) + "WINTUN" + std::to_string(tap.net_luid_index);
       }
+
+      inline HANDLE impersonate_as_system()
+      {
+	HANDLE thread_token, process_snapshot, winlogon_process, winlogon_token, duplicated_token, file_handle;
+	PROCESSENTRY32 entry = {};
+	entry.dwSize = sizeof(PROCESSENTRY32);
+	BOOL ret;
+	DWORD pid = 0;
+	TOKEN_PRIVILEGES privileges = {};
+	privileges.PrivilegeCount = 1;
+	privileges.Privileges->Attributes = SE_PRIVILEGE_ENABLED;
+
+	if (!LookupPrivilegeValue(NULL, SE_DEBUG_NAME, &privileges.Privileges[0].Luid))
+	  return INVALID_HANDLE_VALUE;
+	if (!ImpersonateSelf(SecurityImpersonation))
+	  return INVALID_HANDLE_VALUE;
+	if (!OpenThreadToken(GetCurrentThread(), TOKEN_ADJUST_PRIVILEGES, FALSE, &thread_token))
+	  {
+	    RevertToSelf();
+	    return INVALID_HANDLE_VALUE;
+	  }
+	if (!AdjustTokenPrivileges(thread_token, FALSE, &privileges, sizeof(privileges), NULL, NULL))
+	  {
+	    CloseHandle(thread_token);
+	    RevertToSelf();
+	    return INVALID_HANDLE_VALUE;
+	  }
+	CloseHandle(thread_token);
+
+	process_snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+	if (process_snapshot == INVALID_HANDLE_VALUE)
+	  {
+	    RevertToSelf();
+	    return INVALID_HANDLE_VALUE;
+	  }
+	for (ret = Process32First(process_snapshot, &entry); ret; ret = Process32Next(process_snapshot, &entry))
+	  {
+	    if (!_stricmp(entry.szExeFile, "winlogon.exe"))
+	      {
+		pid = entry.th32ProcessID;
+		break;
+	      }
+	  }
+	CloseHandle(process_snapshot);
+	if (!pid)
+	  {
+	    RevertToSelf();
+	    return INVALID_HANDLE_VALUE;
+	  }
+
+	winlogon_process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
+	if (!winlogon_process)
+	  {
+	    RevertToSelf();
+	    return INVALID_HANDLE_VALUE;
+	  }
+
+	if (!OpenProcessToken(winlogon_process, TOKEN_IMPERSONATE | TOKEN_DUPLICATE, &winlogon_token))
+	  {
+	    CloseHandle(winlogon_process);
+	    RevertToSelf();
+	    return INVALID_HANDLE_VALUE;
+	  }
+	CloseHandle(winlogon_process);
+
+	if (!DuplicateToken(winlogon_token, SecurityImpersonation, &duplicated_token))
+	  {
+	    CloseHandle(winlogon_token);
+	    RevertToSelf();
+	    return INVALID_HANDLE_VALUE;
+	  }
+	CloseHandle(winlogon_token);
+
+	if (!SetThreadToken(NULL, duplicated_token))
+	  {
+	    CloseHandle(duplicated_token);
+	    RevertToSelf();
+	    return INVALID_HANDLE_VALUE;
+	  }
+	CloseHandle(duplicated_token);
+      }
+#else
+      // given a TAP GUID, form the pathname of the TAP device node
+      inline std::string tap_path(const TapNameGuidPair& tap)
+      {
+	return std::string(USERMODEDEVICEDIR) + tap.guid + std::string(TAP_WIN_SUFFIX);
+      }
+#endif
 
       // open an available TAP adapter
       inline HANDLE tap_open(const TapNameGuidPairList& guids,
@@ -335,7 +446,12 @@ namespace openvpn {
 	for (TapNameGuidPairList::const_iterator i = guids.begin(); i != guids.end(); i++)
 	  {
 	    const TapNameGuidPair& tap = *i;
-	    const std::string path = tap_path(tap.guid);
+	    const std::string path = tap_path(tap);
+
+#ifdef USE_WINTUN
+	    // wintun device can be only opened under LocalSystem account
+	    impersonate_as_system();
+#endif
 	    hand.reset(::CreateFileA(path.c_str(),
 				     GENERIC_READ | GENERIC_WRITE,
 				     0, /* was: FILE_SHARE_READ */
@@ -343,6 +459,9 @@ namespace openvpn {
 				     OPEN_EXISTING,
 				     FILE_ATTRIBUTE_SYSTEM | FILE_FLAG_OVERLAPPED,
 				     0));
+#ifdef USE_WINTUN
+	    RevertToSelf();
+#endif
 	    if (hand.defined())
 	      {
 		used = tap;
@@ -353,6 +472,7 @@ namespace openvpn {
 	return hand.release();
       }
 
+#ifndef USE_WINTUN
       // set TAP adapter to topology subnet
       inline void tap_configure_topology_subnet(HANDLE th, const IP::Addr& local, const unsigned int prefix_len)
       {
@@ -400,6 +520,22 @@ namespace openvpn {
 			       &status, sizeof (status), &len, nullptr))
 	  throw tun_win_util("DeviceIoControl TAP_WIN_IOCTL_SET_MEDIA_STATUS failed");
       }
+#else
+      inline void tap_configure_topology_subnet(HANDLE th, const IP::Addr& local, const unsigned int prefix_len)
+      {
+	// no-op for wintun
+      }
+
+      inline void tap_configure_topology_net30(HANDLE th, const IP::Addr& local_addr, const unsigned int prefix_len)
+      {
+	// no-op for wintun
+      }
+
+      inline void tap_set_media_status(HANDLE th, bool media_status)
+      {
+	// no-op for wintun
+      }
+#endif
 
       // get debug logging from TAP driver (requires that
       // TAP driver was built with logging enabled)
