@@ -169,10 +169,19 @@ Build test client::
 
   > c:\Temp\O3\core\win>set O3=C:\Temp\O3 && python build.py
 
-Visual Studio 2015 project and solution files are located in ``O3\core\win`` directory.
+Visual Studio 2017 project and solution files are located in ``O3\core\win`` directory.
 Before opening project you need to build dependencies and define OVPN3_ROOT
 environmental variable (``C:\Temp\O3`` from example above).
 
+Experimental Wintun support
++++++++++++++++++++++++++++
+
+OpenVPN3 core library includes experimental support for Wintun
+kernel driver (https://www.wintun.net/) as an alternative for tap-windows6. 
+In order to build test client with Wintun support in Visual Studio, use
+"Wintundebug/Wintunrelease" configurations. For command-line builds::
+
+ > c:\Temp\O3\core\win>set O3=C:\Temp\O3&& set CPP_EXTRA=-DUSE_WINTUN=1&& set TAP_WIN_COMPONENT_ID=wintun&& python build.py
 
 Testing
 -------
