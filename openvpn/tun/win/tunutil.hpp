@@ -149,7 +149,7 @@ namespace openvpn {
 
 	    if (status != ERROR_SUCCESS || data_type != REG_SZ)
 	      continue;
-	    strbuf[len] = '\0';
+	    strbuf[len - 1] = '\0';
 	    if (std::strcmp(strbuf, wintun ? WINTUN_COMPONENT_ID : COMPONENT_ID))
 	      continue;
 
