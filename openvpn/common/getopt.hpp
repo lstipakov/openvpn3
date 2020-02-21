@@ -46,7 +46,6 @@
 
 #define	GETOPT_BADCH	(int)'?'
 #define	GETOPT_BADARG	(int)':'
-#define	GETOPT_EMSG	""
 
 namespace openvpn {
 
@@ -96,6 +95,7 @@ namespace openvpn {
      */
     inline int getopt_internal(int nargc, char * const *nargv, const char *ostr)
     {
+      char GETOPT_EMSG[] = "";
       static char *place = GETOPT_EMSG;		/* option letter processing */
       const char *oli;				/* option letter list index */
 
