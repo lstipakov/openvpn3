@@ -66,7 +66,7 @@ Options used::
   route-nopull   : if you are connected via ssh, prevent ssh session lockout
 
 Using cli with ovpn-dco
-.......................
+"""""""""""""""""""""""
 
 ovpn-dco is a kernel module which handles data channel
 and provides better proformance.
