@@ -58,7 +58,10 @@ Build the OpenVPN 3 client wrapper (cli) with OpenSSL library:
     $ cmake ..
     $ cmake --build .
 
-To use mbed TLS, use `cmake -DUSE_MBEDTLS=on ..`.
+To use mbed TLS, use:
+::
+
+    $ cmake -DUSE_MBEDTLS=on ..
 
 Run OpenVPN 3 client:
 ::
@@ -136,9 +139,9 @@ See the file ``$O3/core/deps/lib-versions`` for the expected
 version numbers of each dependency.  If you want to use a different
 version of the library than listed here, you can edit this file.
 
-1. Asio â€” https://github.com/chriskohlhoff/asio
-2. mbed TLS (2.3.0 or higher) â€” https://tls.mbed.org/
-3. LZ4 â€” https://github.com/Cyan4973/lz4
+1. Asio - https://github.com/chriskohlhoff/asio
+2. mbed TLS (2.3.0 or higher) - https://tls.mbed.org/
+3. LZ4 - https://github.com/Cyan4973/lz4
 
 For dependencies that are typically cloned from github vs.
 provided as a .tar.gz file, tools are provided to convert
