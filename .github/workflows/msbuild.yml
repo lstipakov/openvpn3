@@ -32,5 +32,5 @@ jobs:
       with:
         useVcpkgToolchainFile: true
         buildDirectory: '${{ github.workspace }}/build'
-        cmakeAppendedArgs: '"-GNinja" -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet}} -DVCPKG_OVERLAY_PORTS=deps\vcpkg-ports'
+        cmakeAppendedArgs: '-GNinja -DVCPKG_OVERLAY_PORTS=${{ github.workspace }}/deps/vcpkg-ports'
         buildWithCMake: true          
