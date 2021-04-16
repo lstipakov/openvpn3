@@ -27,6 +27,10 @@ jobs:
         setupOnly: true
         vcpkgGitCommitId: 'a267ab118c09f56f3dae96c9a4b3410820ad2f0b'
 
-    - name: CMake Configure       
-      working-directory: ${{env.GITHUB_WORKSPACE}}
-      run: cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake -DVCPKG_OVERLAY_PORTS=deps\vcpkg-ports      
+    - name: Run CMake with vcpkg.json manifest
+      uses: lukka/run-cmake@main
+      with:
+          useVcpkgToolchainFile: true
+          buildDirectory: '${{ env.buildDir }}'
+          cmakeAppendedArgs: '"-GNinja" -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet}} -DVCPKG_OVERLAY_PORTS=deps\vcpkg-ports'
+          buildWithCMake: true          
