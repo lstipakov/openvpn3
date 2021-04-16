@@ -30,7 +30,7 @@ jobs:
     - name: Run CMake with vcpkg.json manifest
       uses: lukka/run-cmake@main
       with:
-          useVcpkgToolchainFile: true
-          buildDirectory: '${{ env.buildDir }}'
-          cmakeAppendedArgs: '"-GNinja" -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet}} -DVCPKG_OVERLAY_PORTS=deps\vcpkg-ports'
-          buildWithCMake: true          
+        useVcpkgToolchainFile: true
+        buildDirectory: '${{ github.workspace }}/build'
+        cmakeAppendedArgs: '"-GNinja" -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet}} -DVCPKG_OVERLAY_PORTS=deps\vcpkg-ports'
+        buildWithCMake: true          
