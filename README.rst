@@ -190,7 +190,7 @@ To connect:
 Building the OpenVPN 3 client on Windows
 ----------------------------------------
 
-![Github Actions](actions/workflows/msbuild.yml/badge.svg)
+.. |Flat Badge| image:: actions/workflows/msbuild.yml/badge.svg
 
 Prerequisites:
 
