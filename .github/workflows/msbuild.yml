@@ -25,6 +25,7 @@ jobs:
       uses: lukka/run-vcpkg@v6
       with:
         setupOnly: true
+        vcpkgCommitId: 'a267ab118c09f56f3dae96c9a4b3410820ad2f0b'
 
     - name: CMake Configure       
       working-directory: ${{env.GITHUB_WORKSPACE}}
