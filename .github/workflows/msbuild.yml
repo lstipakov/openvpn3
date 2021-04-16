@@ -3,13 +3,9 @@ name: MSBuild
 on: [push]
 
 env:
-  # Path to the solution file relative to the root of the project.
   SOLUTION_FILE_PATH: .
-
-  # Configuration type to build.
-  # You can convert this to a build matrix if you need coverage of multiple configuration types.
-  # https://docs.github.com/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
-  BUILD_CONFIGURATION: Release
+  BUILD_CONFIGURATION: Release  
+  buildDir: '${{ github.workspace }}/build'
 
 jobs:
   build:
@@ -18,13 +14,14 @@ jobs:
     steps:
     - uses: actions/checkout@v2    
     - uses: lukka/get-cmake@latest
-    - uses: microsoft/setup-msbuild@v1
+    - uses: ilammy/msvc-dev-cmd@v1    
           
     - name: Restore from cache and install vcpkg
       uses: lukka/run-vcpkg@v6
       with:
         setupOnly: true
         vcpkgGitCommitId: 'a267ab118c09f56f3dae96c9a4b3410820ad2f0b'
+        additionalCachedPaths: ${{ env.buildDir }}/vcpkg_installed
 
     - name: Run CMake with vcpkg.json manifest
       uses: lukka/run-cmake@main
@@ -32,5 +29,6 @@ jobs:
         VCPKG_OVERLAY_PORTS: '${{ github.workspace }}/deps/vcpkg-ports'
       with:
         useVcpkgToolchainFile: true
-        buildDirectory: '${{ github.workspace }}/build'
-        buildWithCMake: true          
+        buildDirectory: '{{ env.buildDir }}'
+        buildWithCMake: true
+      
